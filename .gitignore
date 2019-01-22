@@ -1,0 +1,7 @@
+
+/.envrc
+
+*.egg-info/
+*.pyc
+
+/venv/
