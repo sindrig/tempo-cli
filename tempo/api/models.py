@@ -1,5 +1,4 @@
 import datetime
-from typing import Callable
 
 DATE_FORMAT = '%Y-%m-%d'
 DATETIME_FORMAT = '%Y-%m-%dT%H:%M:%SZ'
@@ -7,7 +6,8 @@ DATETIME_FORMAT = '%Y-%m-%dT%H:%M:%SZ'
 
 class Item:
     def __init__(self, data: dict):
-        self.self_link = data['self']
+        self.raw_data = data
+        self.self_link = data.get('self')
         self.populate(data)
 
     def populate(self, data: dict):
@@ -36,8 +36,8 @@ class List(Item):
 class Metadata:
     def __init__(self, data: dict):
         self.count = data['count']
-        self.offset = data['offset']
-        self.limit = data['limit']
+        self.offset = data.get('offset')
+        self.limit = data.get('limit')
 
 
 class Field:
@@ -50,17 +50,28 @@ class Field:
             )
         else:
             self.data_key = data_key
+        self.required = True
 
     def value_getter(self, data):
         if callable(self.data_key):
             return self.data_key(data)
-        return data[self.data_key]
+        if self.required:
+            return data[self.data_key]
+        else:
+            return data.get(self.data_key)
 
     def value(self, data):
-        return self.convert(self.value_getter(data))
+        value = self.value_getter(data)
+        if value or self.required:
+            return self.convert(value)
+        return value
 
     def convert(self, value):
         return value
+
+    def optional(self):
+        self.required = False
+        return self
 
 
 class ItemField(Field):
@@ -76,14 +87,22 @@ class ItemField(Field):
 
 class TimeDeltaField(Field):
     def convert(self, value):
-        if value:
-            return datetime.timedelta(seconds=value)
+        return datetime.timedelta(seconds=value)
 
 
 class DateTimeField(Field):
+    frmt = DATETIME_FORMAT
+
     def convert(self, value):
-        if value:
-            return datetime.datetime.strptime(value, DATETIME_FORMAT)
+        return datetime.datetime.strptime(value, self.frmt)
+
+
+class DateField(DateTimeField):
+    frmt = DATE_FORMAT
+
+    def convert(self, value):
+        value = super().convert(value)
+        return value.date()
 
 
 # JIRA
@@ -130,3 +149,24 @@ class Worklog(Item):
 
 class Worklogs(List):
     of = Worklog
+
+
+class Holiday(Item):
+    fields = [
+        Field('name'),
+        Field('description').optional(),
+        TimeDeltaField('duration', 'durationSeconds'),
+    ]
+
+
+class UserSchedule(Item):
+    fields = [
+        DateField('date'),
+        TimeDeltaField('required', 'requiredSeconds'),
+        Field('type'),
+        ItemField('holiday').using(Holiday).optional(),
+    ]
+
+
+class UserSchedules(List):
+    of = UserSchedule

@@ -20,6 +20,7 @@ def get_defaults():
             'refresh_token': None,
             'client_id': None,
             'client_secret': None,
+            'first_day_of_week': 0,
         },
         'jira': {
             'url': None

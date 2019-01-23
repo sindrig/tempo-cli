@@ -1,3 +1,4 @@
+
 import datetime
 import requests
 import logging
@@ -7,7 +8,7 @@ from urllib.parse import urljoin
 from tempo.config import config
 from tempo.api import models
 from tempo.api.models import DATE_FORMAT
-from tempo.api.decorators import returns
+from tempo.api.decorators import returns, api_request
 
 logger = logging.getLogger(__name__)
 
@@ -27,14 +28,26 @@ class Api:
             'Authorization': f'Bearer {token}'
         }
 
-    def request(self, method, path, params={}):
+    def request(
+        self,
+        method,
+        path,
+        params={},
+        prefix=None
+    ):
+        formatted_params = {
+            key: self.format_param(value)
+            for key, value in params.items()
+            if value
+        }
+        url = urljoin(self.base_url, path)
+        logger.info(
+            f'Making {method} request to {url} with params {formatted_params}'
+        )
         r = getattr(requests, method)(
-            urljoin(self.base_url, path),
+            url,
             headers=self.headers,
-            params={
-                key: self.format_param(value)
-                for key, value in params.items()
-            },
+            params=formatted_params,
         )
         try:
             r.raise_for_status()
@@ -69,6 +82,7 @@ class Tempo(Api):
             return None
         return r.json()['path']
 
+    @api_request
     @returns(models.Worklogs)
     def worklogs(
         self,
@@ -77,7 +91,7 @@ class Tempo(Api):
         to_date: DateType = None,
         updated_from: DateType = None,
         offset=0,
-        limit=50
+        limit=200
     ) -> models.Worklogs:
         if account_id:
             url = f'/core/3/worklogs/account/{account_id}'
@@ -86,11 +100,31 @@ class Tempo(Api):
         return self.get(
             url,
             params={
-                'from_date': from_date,
-                'to_date': to_date,
+                'from': from_date,
+                'to': to_date,
                 'updated_from': updated_from,
                 'offset': offset,
                 'limit': limit,
+            }
+        )
+
+    @api_request(cache=True)
+    @returns(models.UserSchedules)
+    def user_schedules(
+        self,
+        account_id: str = None,
+        from_date: DateType = None,
+        to_date: DateType = None,
+    ) -> models.UserSchedules:
+        if account_id:
+            url = f'/core/3/user-schedule/{account_id}'
+        else:
+            url = '/core/3/user-schedule'
+        return self.get(
+            url,
+            params={
+                'from': from_date,
+                'to': to_date,
             }
         )
 
@@ -105,12 +139,16 @@ class Jira(Api):
 
     @classmethod
     def auth_by_tempo(cls, tempo: Tempo):
-        token_request = tempo.get('/jira/v1/get-jira-oauth-token/')
+        token_request = tempo.get(
+            '/jira/v1/get-jira-oauth-token/',
+            prefix=None
+        )
         return cls(
             token_request['token'],
             expires=token_request['expiresAt'],
             tempo=tempo
         )
 
+    @api_request(cache=True)
     def myself(self) -> dict:
         return self.get('/rest/api/3/myself')

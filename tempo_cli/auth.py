@@ -7,7 +7,7 @@ from urllib.parse import urljoin
 import webbrowser
 
 from oauth2_client.credentials_manager import (
-    CredentialManager, ServiceInformation
+    CredentialManager, ServiceInformation, OAuthError
 )
 
 from tempo.api import Tempo
@@ -21,6 +21,11 @@ NEED_JIRA_URL = (
     'We need your JIRA url. You only need to type the part after "https://" '
     'and ".atlassian.net". So if your JIRA url is '
     '"https://tempo.atlassian.net", only type "tempo": '
+)
+
+BAD_ACCESS_TOKEN = (
+    'Could not communicate with jira using your stored tokens. Do you want '
+    'to authenticate again? (Yy/Nn): '
 )
 
 
@@ -57,7 +62,7 @@ def authenticate():
         logger.info(
             f'Could not validate access using {config.tempo.access_token}'
         )
-        config.tempo.access_token = None
+        # config.tempo.access_token = None
     if config.tempo.client_id and config.tempo.client_secret:
         service_information = ServiceInformation(
             urljoin(
@@ -76,10 +81,17 @@ def authenticate():
             service_information,
         )
         if config.tempo.refresh_token:
-            manager.init_with_token(config.tempo.refresh_token)
-            if validate_access_token(manager._access_token):
-                config.tempo.access_token = manager._access_token
-                return
+            try:
+                manager.init_with_token(config.tempo.refresh_token)
+
+                if validate_access_token(manager._access_token):
+                    config.tempo.access_token = manager._access_token
+                    return
+            except OAuthError:
+                pass
+
+            if input(BAD_ACCESS_TOKEN).lower()[0] != 'y':
+                sys.exit(1)
         redirect_uri = 'http://localhost:8158/oauth/code'
 
         url = manager.init_authorize_code_process(
