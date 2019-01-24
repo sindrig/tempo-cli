@@ -21,11 +21,15 @@ class Api:
             self.original = original
             super().__init__(str(original))
 
-    headers = {}
+    token_type = 'Bearer'
+    token = None
 
     def __init__(self, token):
-        self.headers = {
-            'Authorization': f'Bearer {token}'
+        self.token = token
+
+    def get_headers(self):
+        return {
+            'Authorization': f'{self.token_type} {self.token}',
         }
 
     def request(
@@ -40,19 +44,22 @@ class Api:
             for key, value in params.items()
             if value
         }
-        url = urljoin(self.base_url, path)
+        url = '/'.join([
+            self.base_url.rstrip('/'),
+            path.lstrip('/'),
+        ])
         logger.info(
             f'Making {method} request to {url} with params {formatted_params}'
         )
         r = getattr(requests, method)(
             url,
-            headers=self.headers,
+            headers=self.get_headers(),
             params=formatted_params,
         )
         try:
             r.raise_for_status()
         except Exception as e:
-            logger.exception('Exception calling %s', r.url)
+            logger.error('Exception calling %s', r.url)
             raise self.ApiError(e)
         return r.json()
 
@@ -65,22 +72,70 @@ class Api:
         return param
 
 
+class Jira(Api):
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.base_url = urljoin(
+            config.jira.api_url,
+            f'/ex/jira/{config.jira.site_id}'
+        )
+
+    # def __init__(self, token, expires, tempo):
+    #     super().__init__(token)
+    #     self.tempo = tempo
+    #     self.expires = expires
+
+    # @classmethod
+    # def auth_by_tempo(cls, tempo: Tempo):
+    #     token_request = tempo.get(
+    #         '/jira/v1/get-jira-oauth-token/',
+    #         prefix=None
+    #     )
+    #     return cls(
+    #         token_request['token'],
+    #         expires=token_request['expiresAt'],
+    #         tempo=tempo
+    #     )
+
+    @api_request(cache=True)
+    @returns(models.JiraUser)
+    def myself(self) -> models.JiraUser:
+        return self.get('/rest/api/3/myself')
+
+
+class JiraGlobal(Api):
+    base_url = config.jira.api_url
+
+    @api_request(cache=True)
+    @returns(models.AccessibleResources)
+    def accessible_resources(self) -> models.AccessibleResources:
+        return self.get('/oauth/token/accessible-resources')
+
+
 class Tempo(Api):
     base_url = config.tempo.api_url
+    token_type = 'Jira-Bearer'
 
-    @classmethod
-    def matching_instances(cls, part: str) -> str:
-        r = requests.get(
-            urljoin(config.tempo.url, 'rest/jira/client/search/'),
-            params={'sitename': part}
-        )
-        if not r.ok:
-            logger.warning(
-                f'Received {r.status_code} for matching instances. '
-                f'Url: {r.url}'
-            )
-            return None
-        return r.json()['path']
+    def get_headers(self):
+        return {
+            'Jira-Cloud-Id': config.jira.site_id,
+            **super().get_headers()
+        }
+
+    # @classmethod
+    # def matching_instances(cls, part: str) -> str:
+    #     r = requests.get(
+    #         urljoin(config.tempo.url, 'rest/jira/client/search/'),
+    #         params={'sitename': part}
+    #     )
+    #     if not r.ok:
+    #         logger.warning(
+    #             f'Received {r.status_code} for matching instances. '
+    #             f'Url: {r.url}'
+    #         )
+    #         return None
+    #     return r.json()['path']
 
     @api_request
     @returns(models.Worklogs)
@@ -127,29 +182,3 @@ class Tempo(Api):
                 'to': to_date,
             }
         )
-
-
-class Jira(Api):
-    base_url = config.jira.url
-
-    def __init__(self, token, expires, tempo):
-        super().__init__(token)
-        self.tempo = tempo
-        self.expires = expires
-
-    @classmethod
-    def auth_by_tempo(cls, tempo: Tempo):
-        token_request = tempo.get(
-            '/jira/v1/get-jira-oauth-token/',
-            prefix=None
-        )
-        return cls(
-            token_request['token'],
-            expires=token_request['expiresAt'],
-            tempo=tempo
-        )
-
-    @api_request(cache=True)
-    @returns(models.JiraUser)
-    def myself(self) -> models.JiraUser:
-        return self.get('/rest/api/3/myself')

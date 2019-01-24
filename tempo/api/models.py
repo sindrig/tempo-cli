@@ -1,3 +1,4 @@
+from typing import Union
 import datetime
 
 DATE_FORMAT = '%Y-%m-%d'
@@ -16,8 +17,19 @@ class Item:
 
 
 class List(Item):
+    def __init__(self, data: Union[dict, list]):
+        if isinstance(data, dict):
+            super().__init__(data)
+        else:
+            super().__init__({
+                'results': data,
+            })
+
     def __iter__(self):
         return iter(self._items)
+
+    def __getitem__(self, idx):
+        return self._items[idx]
 
     def get_type(self):
         if not hasattr(self, 'of'):
@@ -26,11 +38,17 @@ class List(Item):
 
     def populate(self, data: dict):
         web_item_type = self.get_type()
-        self.metadata = Metadata(data['metadata'])
+        if 'metadata' in data:
+            self.metadata = Metadata(data['metadata'])
+        else:
+            self.metadata = None
         self._items = [
             web_item_type(item_data)
             for item_data in data['results']
         ]
+        # if isinstance(data, dict):
+        # else:
+        #     self._items = [web_item_type(item_data) for item_data in data]
 
 
 class Metadata:
@@ -105,9 +123,20 @@ class DateField(DateTimeField):
         return value.date()
 
 
+class ArrayField(Field):
+    data_type = str
+
+    def of(self, data_type):
+        self.data_type = data_type
+
+    def convert(self, value):
+        return [
+            self.data_type(val)
+            for val in value
+        ]
+
+
 # JIRA
-
-
 class Issue(Item):
     fields = [
         Field('key')
@@ -119,6 +148,19 @@ class JiraUser(Item):
         Field('account_id'),
         Field('display_name'),
     ]
+
+
+class AccessibleResource(Item):
+    fields = [
+        Field('id'),
+        Field('name'),
+        ArrayField('scopes'),
+        Field('avatar_url'),
+    ]
+
+
+class AccessibleResources(List):
+    of = AccessibleResource
 
 
 # TEMPO

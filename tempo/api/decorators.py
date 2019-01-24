@@ -41,11 +41,8 @@ def api_request(original_function=None, cache=False):
             cache_key = f'{method_uuid}_{str(kwargs)}'
             if cache and cache_key in mem_cache:
                 return mem_cache[cache_key]
-            logger.info(f'f: {f}')
-            logger.info(f'callback: {callback}')
-            logger.info(f'args: {args}')
-            logger.info(f'kwargs: {kwargs}')
             if callback:
+                logger.debug('Starting thread')
                 RestRequestThread(f, callback, *args, **kwargs)
             else:
                 result = f(*args, **kwargs)
@@ -57,25 +54,3 @@ def api_request(original_function=None, cache=False):
     if original_function:
         return decorate(original_function)
     return decorate
-
-
-
-# def api_request(original_function=None, cache=False):
-#     method_uuid = str(uuid.uuid4())
-
-#     def decorate(f):
-
-#         @functools.wraps(f)
-#         def wrapper(*args, cache=cache, **kwargs):
-#             cache_key = f'{method_uuid}_{str(args)}_{str(kwargs)}'
-#             if cache and cache_key in mem_cache:
-#                 return mem_cache[cache_key]
-#             result = f(*args, **kwargs)
-#             if cache:
-#                 mem_cache[cache_key] = result
-#             return result
-#         return wrapper
-
-#     if original_function:
-#         return decorate(original_function)
-#     return decorate

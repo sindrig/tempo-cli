@@ -15,7 +15,7 @@ def get_defaults():
     return {
         'tempo': {
             'api_url': 'https://api.tempo.io',
-            'url': 'https://app.tempo.io',
+            # 'url': 'https://app.tempo.io',
             'access_token': None,
             'refresh_token': None,
             'client_id': None,
@@ -23,7 +23,14 @@ def get_defaults():
             'first_day_of_week': 0,
         },
         'jira': {
-            'url': None
+            # 'url': None,
+            'auth_url': 'https://auth.atlassian.com',
+            'api_url': 'https://api.atlassian.com',
+            'site_id': None,
+            'client_id': None,
+            'client_secret': None,
+            'access_token': None,
+            'refresh_token': None,
         }
     }
 
