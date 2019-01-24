@@ -1,4 +1,5 @@
 import logging
+import locale
 import curses
 
 from tempo_cli.ui.components.my_work import MyWork
@@ -27,6 +28,7 @@ class TempoUI:
         curses.use_default_colors()
         curses.init_pair(curses.COLOR_RED, curses.COLOR_RED, -1)
         curses.init_pair(curses.COLOR_GREEN, curses.COLOR_GREEN, -1)
+        locale.setlocale(locale.LC_ALL, "")
         self.start()
 
     def exit(self):
@@ -51,25 +53,26 @@ class TempoUI:
     def navigate(self):
         key = self.stdscr.getch()
         if key in [curses.KEY_ENTER, ord('\n')]:
-            self.page.key_select()
+            target = self.page.key_select
         elif key == curses.KEY_UP:
-            self.page.key_up()
+            target = self.page.key_up
         elif key == curses.KEY_DOWN:
-            self.page.key_down()
+            target = self.page.key_down
         elif key == curses.KEY_LEFT:
-            self.page.key_left()
+            target = self.page.key_left
         elif key == curses.KEY_RIGHT:
-            self.page.key_right()
+            target = self.page.key_right
         elif key == curses.KEY_RESIZE:
-            self.page.refresh()
+            target = self.page.refresh
         elif key in self.page.bound_keys:
-            result = self.page.bound_keys[key]()
-            if result is not None:
-                callback, kwargs = result
-                if issubclass(callback, Component):
-                    self.set_page(callback(**self.container_kwargs, **kwargs))
-                else:
-                    callback(**kwargs)
+            target = self.page.bound_keys[key]
+        result = target()
+        if result is not None:
+            callback, kwargs = result
+            if issubclass(callback, Component):
+                self.set_page(callback(**self.container_kwargs, **kwargs))
+            else:
+                callback(**kwargs)
 
     def display(self):
         while self.running:

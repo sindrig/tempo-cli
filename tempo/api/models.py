@@ -116,7 +116,8 @@ class Issue(Item):
 
 class JiraUser(Item):
     fields = [
-        Field('account_id')
+        Field('account_id'),
+        Field('display_name'),
     ]
 
 

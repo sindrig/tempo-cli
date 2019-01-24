@@ -150,5 +150,6 @@ class Jira(Api):
         )
 
     @api_request(cache=True)
-    def myself(self) -> dict:
+    @returns(models.JiraUser)
+    def myself(self) -> models.JiraUser:
         return self.get('/rest/api/3/myself')

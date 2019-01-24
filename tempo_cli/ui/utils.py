@@ -11,3 +11,7 @@ def delta_to_human(timedelta: datetime.timedelta) -> str:
 
 def date_to_human(date: datetime.date) -> str:
     return date.strftime('%a %Y-%m-%d')
+
+
+def datetime_to_human(dt: datetime.datetime) -> str:
+    return dt.strftime('%Y-%m-%d %H:%M')
