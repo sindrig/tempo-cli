@@ -19,6 +19,7 @@ class Item:
 
 class List(Item):
     result_key = 'results'
+
     def __init__(self, data: Union[dict, list]):
         if isinstance(data, dict):
             super().__init__(data)

@@ -43,6 +43,7 @@ def api_request(original_function=None, cache=False):
             if cache and cache_key in mem_cache:
                 return mem_cache[cache_key]
             if callback:
+                logger.debug('Starting thread')
                 RestRequestThread(f, callback, *args, **kwargs)
             else:
                 result = f(*args, **kwargs)

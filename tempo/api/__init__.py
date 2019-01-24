@@ -1,3 +1,3 @@
-from .api import Tempo, Jira
+from .api import Tempo, Jira, JiraGlobal
 
-__all__ = [Tempo, Jira]
+__all__ = [Tempo, Jira, JiraGlobal]

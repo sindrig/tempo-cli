@@ -10,9 +10,16 @@ logger = logging.getLogger(__name__)
 
 @ensure_auth
 def main(config):
-    try:
-        tempo = Tempo(config.tempo.access_token)
-        jira = Jira.auth_by_tempo(tempo)
+    if config.jira.access_token:
+        jira = Jira(config.jira.access_token)
+        print(jira.base_url)
+        jira.myself()
+        tempo = Tempo(config.jira.access_token)
+        for w in tempo.worklogs():
+            print(w)
         wrapper(TempoUI(tempo, jira))
-    except Exception:
-        logging.exception('Uncaught exception')
+    print('Bye!')
+    # tempo = Tempo(config.tempo.access_token)
+    # jira = Jira.auth_by_tempo(tempo)
+    # with TempoUI(tempo, jira) as ui:
+    #     ui.start()
