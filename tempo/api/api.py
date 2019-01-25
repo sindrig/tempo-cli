@@ -7,7 +7,7 @@ from urllib.parse import urljoin
 
 from tempo.config import config
 from tempo.api import models
-from tempo.api.models import DATE_FORMAT
+from tempo.api.models import DATE_FORMAT, TIME_FORMAT
 from tempo.api.decorators import returns, api_request
 
 logger = logging.getLogger(__name__)
@@ -17,8 +17,9 @@ DateType = Union[datetime.date, datetime.date]
 
 class Api:
     class ApiError(Exception):
-        def __init__(self, original):
+        def __init__(self, original, error):
             self.original = original
+            self.error = error
             super().__init__(str(original))
 
     headers = {}
@@ -33,6 +34,7 @@ class Api:
         method,
         path,
         params={},
+        json=None,
         prefix=None
     ):
         formatted_params = {
@@ -48,16 +50,23 @@ class Api:
             url,
             headers=self.headers,
             params=formatted_params,
+            json=json,
         )
         try:
             r.raise_for_status()
         except Exception as e:
             logger.exception('Exception calling %s', r.url)
-            raise self.ApiError(e)
+            raise self.ApiError(e, r.text)
         return r.json()
 
     def get(self, *args, **kwargs):
         return self.request('get', *args, **kwargs)
+
+    def post(self, *args, **kwargs):
+        return self.request('post', *args, **kwargs)
+
+    def put(self, *args, **kwargs):
+        return self.request('put', *args, **kwargs)
 
     def format_param(self, param):
         if isinstance(param, (datetime.datetime, datetime.date)):
@@ -128,6 +137,47 @@ class Tempo(Api):
             }
         )
 
+    @api_request
+    @returns(models.Worklog)
+    def update_worklog(
+        self,
+        worklog_id: int = None,
+        description: str = '',
+        issue_key: str = '',
+        time_spent: int = 0,
+        billable: int = 0,
+        remaining_estimate: int = 0,
+        started: datetime.datetime = None,
+        author_account_id: str = None,
+        attributes: list = None
+    ):
+        if attributes is None:
+            attributes = []
+        if author_account_id is None:
+            jira = Jira.auth_by_tempo(self)
+            author_account_id = jira.myself()['accountId']
+        if started is None:
+            started = datetime.datetime.now()
+        data = {
+            "issueKey": issue_key,
+            "timeSpentSeconds": time_spent,
+            "billableSeconds": billable,
+            "startDate": started.strftime(DATE_FORMAT),
+            "startTime": started.strftime(TIME_FORMAT),
+            "description": description,
+            "authorAccountId": author_account_id,
+            "remainingEstimateSeconds": remaining_estimate,
+            "attributes": attributes,
+        }
+        if worklog_id is not None:
+            return self.put(
+                f'/core/3/worklogs/{worklog_id}',
+                json=data,
+            )
+        return self.post(f'/core/3/worklogs', json=data)
+
+    create_worklog = update_worklog
+
 
 class Jira(Api):
     base_url = config.jira.url
@@ -153,3 +203,21 @@ class Jira(Api):
     @returns(models.JiraUser)
     def myself(self) -> models.JiraUser:
         return self.get('/rest/api/3/myself')
+
+    @api_request
+    @returns(models.Issue)
+    def issue(self, key):
+        return self.get(f'/rest/api/3/issue/{key}')
+
+    @api_request
+    @returns(models.IssuePickerSections)
+    def issue_picker(self, search):
+        params = {
+            'currentJQL': (
+                'project in projectsWhereUserHasPermission("Work on issues")'
+            ),
+            'query': search,
+            'showSubTaskParent': 'true',
+            'showSubTasks': 'true',
+        }
+        return self.get('/rest/api/3/issue/picker', params=params)

@@ -25,8 +25,11 @@ class MyWork(Component):
         self.get_worklogs()
         self.get_schedules()
 
-    def create_worklog(self):
-        return WorklogForm, {'date': self.date}
+    def create_worklog(self, key):
+        return WorklogForm, {
+            'date': self.date,
+            'create_callback': self.worklog_created,
+        }
 
     def daterange(self):
         from_date = self.date
@@ -137,7 +140,7 @@ class MyWork(Component):
                     mode,
                 )
 
-    def key_up(self):
+    def key_up(self, key):
         worklogs = self.worklogs[self.date]
         if self.selected_worklog in worklogs:
             idx = worklogs.index(self.selected_worklog)
@@ -146,7 +149,7 @@ class MyWork(Component):
                 self.selected_worklog = worklog
                 logger.info(f'Selected worklog {self.selected_worklog.id}')
 
-    def key_down(self):
+    def key_down(self, key):
         worklogs = self.worklogs[self.date]
         if self.selected_worklog in worklogs:
             idx = worklogs.index(self.selected_worklog)
@@ -155,7 +158,7 @@ class MyWork(Component):
                 self.selected_worklog = worklog
                 logger.info(f'Selected worklog {self.selected_worklog.id}')
 
-    def key_left(self):
+    def key_left(self, key):
         self.date -= datetime.timedelta(1)
         logger.info(f'Selected date {self.date}')
         if self.date in self.worklogs:
@@ -163,10 +166,21 @@ class MyWork(Component):
         else:
             self.get_data()
 
-    def key_right(self):
+    def key_right(self, key):
         self.date += datetime.timedelta(1)
         logger.info(f'Selected date {self.date}')
         if self.date in self.worklogs:
             self.select_first_worklog()
         else:
             self.get_data()
+
+    def key_select(self, key):
+        if self.selected_worklog:
+            return WorklogForm, {
+                'worklog': self.selected_worklog,
+                'create_callback': self.worklog_created,
+            }
+
+    def worklog_created(self, worklog):
+        if worklog.started.date() in self.worklogs:
+            self.worklogs[worklog.started.date()].append(worklog)

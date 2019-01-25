@@ -15,7 +15,7 @@ class Component:
         self.key_legend = {}
         self.bind_key('q', self.close, 'Close')
 
-    def refresh(self):
+    def refresh(self, key=None):
         self.stdscr.clear()
         self.display()
         self.add_legend()
@@ -30,19 +30,19 @@ class Component:
         self.addstr(y, 1, legend[:x])
         self.addstr(y + 1, 1, legend[x:])
 
-    def key_up(self):
+    def key_up(self, key):
         pass
 
-    def key_down(self):
+    def key_down(self, key):
         pass
 
-    def key_right(self):
+    def key_right(self, key):
         pass
 
-    def key_left(self):
+    def key_left(self, key):
         pass
 
-    def key_select(self):
+    def key_select(self, key):
         pass
 
     def addstr(self, *args, **kwargs):

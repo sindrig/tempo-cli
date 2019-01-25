@@ -1,5 +1,6 @@
 import logging
 import locale
+import inspect
 import curses
 
 from tempo_cli.ui.components.my_work import MyWork
@@ -38,7 +39,7 @@ class TempoUI:
     def page(self):
         return self.page_stack[-1]
 
-    def go_back(self):
+    def go_back(self, key=None):
         self.page_stack.pop()
         if not self.page_stack:
             self.exit()
@@ -52,27 +53,33 @@ class TempoUI:
 
     def navigate(self):
         key = self.stdscr.getch()
-        if key in [curses.KEY_ENTER, ord('\n')]:
+        target = None
+        if key in (curses.KEY_ENTER, ord('\n')):
             target = self.page.key_select
-        elif key == curses.KEY_UP:
+        elif key in (curses.KEY_UP, ord('k')):
             target = self.page.key_up
-        elif key == curses.KEY_DOWN:
+        elif key in (curses.KEY_DOWN, ord('j')):
             target = self.page.key_down
-        elif key == curses.KEY_LEFT:
+        elif key in (curses.KEY_LEFT, ord('h')):
             target = self.page.key_left
-        elif key == curses.KEY_RIGHT:
+        elif key in (curses.KEY_RIGHT, ord('l')):
             target = self.page.key_right
         elif key == curses.KEY_RESIZE:
             target = self.page.refresh
         elif key in self.page.bound_keys:
             target = self.page.bound_keys[key]
-        result = target()
-        if result is not None:
-            callback, kwargs = result
-            if issubclass(callback, Component):
-                self.set_page(callback(**self.container_kwargs, **kwargs))
-            else:
-                callback(**kwargs)
+        if target:
+            result = target(key)
+            while result is not None:
+                callback, kwargs = result
+                result = None
+                if (
+                    inspect.isclass(callback) and
+                    issubclass(callback, Component)
+                ):
+                    self.set_page(callback(**self.container_kwargs, **kwargs))
+                else:
+                    result = callback(**kwargs)
 
     def display(self):
         while self.running:
