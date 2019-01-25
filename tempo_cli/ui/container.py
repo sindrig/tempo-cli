@@ -25,6 +25,7 @@ class TempoUI:
             'tempo': self.tempo,
             'jira': self.jira,
             'close': self.go_back,
+            'on_top': self.on_top,
         }
         curses.use_default_colors()
         curses.init_pair(curses.COLOR_RED, curses.COLOR_RED, -1)
@@ -46,6 +47,9 @@ class TempoUI:
 
     def set_page(self, page):
         self.page_stack.append(page)
+
+    def on_top(self, page):
+        return page == self.page_stack[-1]
 
     def start(self):
         self.set_page(MyWork(**self.container_kwargs))

@@ -6,20 +6,22 @@ logger = logging.getLogger(__name__)
 
 
 class Component:
-    def __init__(self, stdscr, tempo, jira, close):
+    def __init__(self, stdscr, tempo, jira, close, on_top):
         self.tempo = tempo
         self.jira = jira
         self.stdscr = stdscr
         self.close = close
+        self.on_top = on_top
         self.bound_keys = {}
         self.key_legend = {}
         self.bind_key('q', self.close, 'Close')
 
     def refresh(self, key=None):
-        self.stdscr.clear()
-        self.display()
-        self.add_legend()
-        self.stdscr.refresh()
+        if self.on_top(self):
+            self.stdscr.clear()
+            self.display()
+            self.add_legend()
+            self.stdscr.refresh()
 
     def add_legend(self):
         y, x = self.get_dimensions()

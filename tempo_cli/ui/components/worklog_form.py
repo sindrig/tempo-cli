@@ -46,7 +46,10 @@ class WorklogForm(Component):
                 'time_spent': 0,
                 'billable': 0,
                 'remaining_estimate': 0,
-                'started': datetime.datetime.now(),
+                'started': datetime.datetime.combine(
+                    date,
+                    datetime.time.min,
+                ),
                 'author_account_id': self.jira.myself(cache=True).account_id,
             }
             self.bind_key('c', self.update_worklog, 'Create worklog')
