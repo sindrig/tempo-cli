@@ -1,7 +1,9 @@
+from typing import Union
 import datetime
 
 DATE_FORMAT = '%Y-%m-%d'
-DATETIME_FORMAT = '%Y-%m-%dT%H:%M:%SZ'
+TIME_FORMAT = '%H:%M:%S'
+DATETIME_FORMAT = f'{DATE_FORMAT}T{TIME_FORMAT}Z'
 
 
 class Item:
@@ -16,8 +18,20 @@ class Item:
 
 
 class List(Item):
+    result_key = 'results'
+    def __init__(self, data: Union[dict, list]):
+        if isinstance(data, dict):
+            super().__init__(data)
+        else:
+            super().__init__({
+                self.result_key: data,
+            })
+
     def __iter__(self):
         return iter(self._items)
+
+    def __getitem__(self, idx):
+        return self._items[idx]
 
     def get_type(self):
         if not hasattr(self, 'of'):
@@ -26,11 +40,17 @@ class List(Item):
 
     def populate(self, data: dict):
         web_item_type = self.get_type()
-        self.metadata = Metadata(data['metadata'])
+        if 'metadata' in data:
+            self.metadata = Metadata(data['metadata'])
+        else:
+            self.metadata = None
         self._items = [
             web_item_type(item_data)
-            for item_data in data['results']
+            for item_data in data[self.result_key]
         ]
+        # if isinstance(data, dict):
+        # else:
+        #     self._items = [web_item_type(item_data) for item_data in data]
 
 
 class Metadata:
@@ -105,9 +125,21 @@ class DateField(DateTimeField):
         return value.date()
 
 
+class ArrayField(Field):
+    data_type = str
+
+    def of(self, data_type):
+        self.data_type = data_type
+        return self
+
+    def convert(self, value):
+        return [
+            self.data_type(val)
+            for val in value
+        ]
+
+
 # JIRA
-
-
 class Issue(Item):
     fields = [
         Field('key')
@@ -116,8 +148,42 @@ class Issue(Item):
 
 class JiraUser(Item):
     fields = [
-        Field('account_id')
+        Field('account_id'),
+        Field('display_name'),
     ]
+
+
+class AccessibleResource(Item):
+    fields = [
+        Field('id'),
+        Field('name'),
+        ArrayField('scopes'),
+        Field('avatar_url'),
+    ]
+
+
+class PickerIssue(Item):
+    fields = [
+        Field('key'),
+        Field('summary', 'summaryText'),
+        Field('img'),
+    ]
+
+
+class IssuePickerSection(Item):
+    fields = [
+        Field('label'),
+        ArrayField('issues').of(PickerIssue)
+    ]
+
+
+class IssuePickerSections(List):
+    result_key = 'sections'
+    of = IssuePickerSection
+
+
+class AccessibleResources(List):
+    of = AccessibleResource
 
 
 # TEMPO

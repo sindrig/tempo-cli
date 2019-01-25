@@ -16,16 +16,21 @@ class MyWork(Component):
         super().__init__(*args, **kwargs)
         if not date:
             date = datetime.date.today()
+        self.selected_worklog = None
         self.date = date
         self.get_data()
         self.bind_key('c', self.create_worklog, 'Log work')
 
     def get_data(self):
+        self.user = self.jira.myself(cache=True)
         self.get_worklogs()
         self.get_schedules()
 
-    def create_worklog(self):
-        return WorklogForm, {'date': self.date}
+    def create_worklog(self, key):
+        return WorklogForm, {
+            'date': self.date,
+            'create_callback': self.worklog_created,
+        }
 
     def daterange(self):
         from_date = self.date
@@ -89,6 +94,7 @@ class MyWork(Component):
     def display(self):
         y, x = self.get_dimensions()
         column_width = int(x / 7)
+        self.addstr(1, 1, f'Hi {self.user.display_name}!')
         for col, (date, worklogs) in enumerate(self.worklogs.items()):
             colstart = col * column_width + 1
             if date == self.date:
@@ -96,7 +102,7 @@ class MyWork(Component):
             else:
                 mode = curses.A_NORMAL
             self.addstr(
-                1, colstart, date_to_human(date), mode
+                2, colstart, date_to_human(date), mode
             )
             if date in self.schedules:
                 schedule = self.schedules[date]
@@ -112,7 +118,7 @@ class MyWork(Component):
                 else:
                     mode = curses.color_pair(curses.COLOR_GREEN)
                 self.addstr(
-                    2,
+                    3,
                     colstart,
                     (
                         f'{sec_to_human(worked_seconds)}/'
@@ -121,7 +127,7 @@ class MyWork(Component):
                     mode,
                 )
             self.addstr(
-                3, colstart, '-' * column_width, curses.A_NORMAL
+                4, colstart, '-' * column_width, curses.A_NORMAL
             )
             for i, worklog in enumerate(worklogs):
                 if worklog == self.selected_worklog:
@@ -129,13 +135,13 @@ class MyWork(Component):
                 else:
                     mode = curses.A_NORMAL
                 self.addstr(
-                    i + 4,
+                    i + 5,
                     colstart,
                     self.short_worklog_display(worklog),
                     mode,
                 )
 
-    def key_up(self):
+    def key_up(self, key):
         worklogs = self.worklogs[self.date]
         if self.selected_worklog in worklogs:
             idx = worklogs.index(self.selected_worklog)
@@ -144,7 +150,7 @@ class MyWork(Component):
                 self.selected_worklog = worklog
                 logger.info(f'Selected worklog {self.selected_worklog.id}')
 
-    def key_down(self):
+    def key_down(self, key):
         worklogs = self.worklogs[self.date]
         if self.selected_worklog in worklogs:
             idx = worklogs.index(self.selected_worklog)
@@ -153,7 +159,7 @@ class MyWork(Component):
                 self.selected_worklog = worklog
                 logger.info(f'Selected worklog {self.selected_worklog.id}')
 
-    def key_left(self):
+    def key_left(self, key):
         self.date -= datetime.timedelta(1)
         logger.info(f'Selected date {self.date}')
         if self.date in self.worklogs:
@@ -161,10 +167,27 @@ class MyWork(Component):
         else:
             self.get_data()
 
-    def key_right(self):
+    def key_right(self, key):
         self.date += datetime.timedelta(1)
         logger.info(f'Selected date {self.date}')
         if self.date in self.worklogs:
             self.select_first_worklog()
         else:
             self.get_data()
+
+    def key_select(self, key):
+        if self.selected_worklog:
+            return WorklogForm, {
+                'worklog': self.selected_worklog,
+                'create_callback': self.worklog_created,
+            }
+
+    def worklog_created(self, worklog):
+        for date in self.worklogs:
+            for i in range(len(self.worklogs[date])):
+                if self.worklogs[date][i].id == worklog.id:
+                    del self.worklogs[date][i]
+                    break
+        if worklog.started.date() in self.worklogs:
+            self.worklogs[worklog.started.date()].append(worklog)
+            self.selected_worklog = worklog

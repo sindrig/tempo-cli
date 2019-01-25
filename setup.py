@@ -26,7 +26,13 @@ setup_kwargs = dict(
         'requests==2.21.0',
         'appdirs==1.4.3',
         'oauth2-client==1.1.0',
-    ]
+    ],
+    test_requires=[
+        'pytest',
+    ],
+    setup_requires=[
+        'pytest-runner'
+    ],
 )
 
 
