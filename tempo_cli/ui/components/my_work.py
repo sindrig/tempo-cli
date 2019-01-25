@@ -16,6 +16,7 @@ class MyWork(Component):
         super().__init__(*args, **kwargs)
         if not date:
             date = datetime.date.today()
+        self.selected_worklog = None
         self.date = date
         self.get_data()
         self.bind_key('c', self.create_worklog, 'Log work')
@@ -182,5 +183,11 @@ class MyWork(Component):
             }
 
     def worklog_created(self, worklog):
+        for date in self.worklogs:
+            for i in range(len(self.worklogs[date])):
+                if self.worklogs[date][i].id == worklog.id:
+                    del self.worklogs[date][i]
+                    break
         if worklog.started.date() in self.worklogs:
             self.worklogs[worklog.started.date()].append(worklog)
+            self.selected_worklog = worklog

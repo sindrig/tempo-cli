@@ -23,6 +23,7 @@ class WorklogForm(Component):
         if not date:
             date = datetime.date.today()
         self.worklog = worklog
+        self.error = ''
 
         self.selected_line = 0
 
@@ -68,8 +69,8 @@ class WorklogForm(Component):
             ('User', (str, 'author_account_id'), Editor()),  # TODO
         ]
         self.bind_key('i', self.key_select, 'Edit field')
-        self.bind_key(curses.KEY_PPAGE, self.increase, 'Decrease value')
-        self.bind_key(curses.KEY_NPAGE, self.decrease, 'Increase value')
+        self.bind_key(['-', curses.KEY_NPAGE], self.decrease, 'Decrease value')
+        self.bind_key(['+', curses.KEY_PPAGE], self.increase, 'Increase value')
 
     def add_field(self, y, x, text):
         if self.selected_line == y:
@@ -90,10 +91,17 @@ class WorklogForm(Component):
             else:
                 self.addstr(i + 1, 1, ' ' * 10, mode)
 
+        y, x = self.get_dimensions()
+        for i, line in enumerate(self.error.splitlines()):
+            lineno = len(self.form) + i + 2
+            if lineno > y:
+                break
+            self.addstr(lineno, 1, line, curses.color_pair(curses.COLOR_RED))
+
     def update(self, key):
         def _inner(value):
             self.data[key] = value
-            if key == 'time_spent' and not self.data['billable']:
+            if key == 'time_spent':
                 self.data['billable'] = value
         return _inner
 
@@ -114,18 +122,11 @@ class WorklogForm(Component):
 
     def update_worklog(self, key):
         # Update without id creates worklog
+        self.error = ''
         try:
             created = self.tempo.update_worklog(**self.data)
         except self.tempo.ApiError as e:
-            y, x = self.get_dimensions()
-            logger.warning(e.error)
-            for i, line in enumerate(e.error.splitlines()):
-                lineno = len(self.form) + i + 1
-                logger.info(lineno)
-                logger.info(y)
-                if lineno > y:
-                    break
-                self.addstr(lineno, 1, line)
+            self.error = e.error
         else:
             self.create_callback(created)
             self.close()
@@ -223,6 +224,9 @@ class IssuePicker(Component):
                 self.addstr(i, 5, f'{issue.key} - {issue.summary}', mode)
                 i += 1
                 self.issues.append(issue)
+        if not self.issues:
+            self.callback(None)
+            self.close()
 
     def key_up(self, key):
         idx = self.issues.index(self.selected_issue)

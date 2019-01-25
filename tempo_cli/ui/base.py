@@ -21,6 +21,7 @@ class Component:
             self.stdscr.clear()
             self.display()
             self.add_legend()
+            self.stdscr.keypad(1)
             self.stdscr.refresh()
 
     def add_legend(self):
