@@ -140,9 +140,15 @@ class MyWork(Component):
                 else:
                     mode = curses.A_NORMAL
                 self.addstr(
-                    i + 5,
+                    i * 2 + 5,
                     colstart,
                     self.short_worklog_display(worklog),
+                    mode,
+                )
+                self.addstr(
+                    i * 2 + 6,
+                    colstart,
+                    worklog.description[:column_width],
                     mode,
                 )
 

@@ -88,7 +88,12 @@ class WorklogForm(Component):
                 mode = curses.A_NORMAL
             if field:
                 (label, (fn, key), editor) = field
-                self.addstr(i + 1, 1, f'{label}: {fn(self.data[key])}', mode)
+                self.addstr(
+                    i + 1,
+                    1,
+                    f'{label}: {fn(self.data[key])}'.replace("\n", " "),
+                    mode
+                )
             else:
                 self.addstr(i + 1, 1, ' ' * 10, mode)
 
