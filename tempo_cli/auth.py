@@ -9,7 +9,7 @@ from oauth2_client.credentials_manager import (
     CredentialManager, ServiceInformation, OAuthError
 )
 
-from tempo.api import JiraGlobal
+from tempo.api import jira_global
 from tempo.config import config
 
 
@@ -41,12 +41,13 @@ class TokenNotValid(Exception):
 
 
 def validate_access_token(access_token):
-    jira = JiraGlobal(access_token)
     try:
-        resource = jira.accessible_resources()[0]
+        resource = jira_global.accessible_resources(
+            access_token=access_token
+        )[0]
         logger.info('Success. Jira name: %s', resource.name)
         config.jira.site_id = resource.id
-    except JiraGlobal.ApiError:
+    except jira_global.ApiError:
         raise TokenNotValid()
 
 
@@ -108,66 +109,3 @@ def authenticate():
     logger.debug('Access got = %s', manager._access_token)
     config.jira.access_token = manager._access_token
     config.jira.refresh_token = manager.refresh_token
-
-    # if config.tempo.client_id and config.tempo.client_secret:
-    #     service_information = ServiceInformation(
-    #         urljoin(
-    #             config.jira.url,
-    #             '/plugins/servlet/ac/io.tempo.jira/oauth-authorize/'
-    #         ),
-    #         urljoin(
-    #             config.tempo.api_url,
-    #             '/oauth/token/',
-    #         ),
-    #         config.tempo.client_id,
-    #         config.tempo.client_secret,
-    #         [],
-    #     )
-    #     manager = CredentialManager(
-    #         service_information,
-    #     )
-    #     if config.tempo.refresh_token:
-    #         try:
-    #             manager.init_with_token(config.tempo.refresh_token)
-
-    #             if validate_access_token(manager._access_token):
-    #                 config.tempo.access_token = manager._access_token
-    #                 return
-    #         except OAuthError:
-    #             pass
-
-    #         if input(BAD_ACCESS_TOKEN).lower()[0] != 'y':
-    #             sys.exit(1)
-    #     redirect_uri = 'http://localhost:8158/oauth/code'
-
-    #     url = manager.init_authorize_code_process(
-    #         redirect_uri,
-    #         str(uuid.uuid4())
-    #     )
-    #     url = f'{url}&access_type=tenant_user'
-    #     logger.info('Opening this url in your browser: %s', url)
-    #     webbrowser.open(url)
-    #     print('Please finish the authorization process in your browser.')
-
-    #     code = manager.wait_and_terminate_authorize_code_process()
-    #     logger.debug('Code got = %s', code)
-    #     manager.init_with_authorize_code(redirect_uri, code)
-    #     logger.debug('Access got = %s', manager._access_token)
-    #     config.tempo.access_token = manager._access_token
-    #     config.tempo.refresh_token = manager.refresh_token
-    # else:
-    #     webbrowser.open(
-    #         urljoin(
-    #             config.jira.url,
-    #             '/plugins/servlet/ac/io.tempo.jira/tempo-configuration/'
-    #         )
-    #     )
-    #     access_token = input(
-    #         'I opened a new browser window where you can get an access token. '
-    #         'Paste your access token here:'
-    #     )
-    #     if validate_access_token(access_token):
-    #         config.tempo.access_token = access_token
-    #     else:
-    #         print('Could not communicate with tempo. Check the logs.')
-    #         sys.exit(1)

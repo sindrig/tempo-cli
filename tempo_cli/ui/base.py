@@ -1,3 +1,4 @@
+import curses
 import logging
 from typing import Callable
 
@@ -6,12 +7,11 @@ logger = logging.getLogger(__name__)
 
 
 class Component:
-    def __init__(self, stdscr, tempo, jira, close, on_top):
-        self.tempo = tempo
-        self.jira = jira
+    def __init__(self, stdscr, close, on_top, get_http_request_count):
         self.stdscr = stdscr
         self.close = close
         self.on_top = on_top
+        self.get_http_request_count = get_http_request_count
         self.bound_keys = {}
         self.key_legend = {}
         self.bind_key('q', self.close, 'Close')
@@ -30,8 +30,15 @@ class Component:
             f'[{key}]: {description}'
             for key, description in self.key_legend.items()
         )
-        self.addstr(y, 1, legend[:x])
-        self.addstr(y + 1, 1, legend[x:])
+
+        self.addstr(y + 1, 1, legend)
+        request_count = self.get_http_request_count()
+        if request_count:
+            self.addstr(
+                y,
+                1,
+                f'Currently making {request_count} HTTP requests...'
+            )
 
     def key_up(self, key):
         pass
@@ -76,7 +83,10 @@ class Component:
         if description:
             self.key_legend[keys[0]] = description
         for i in range(len(keys)):
-            if isinstance(keys[i], str):
-                keys[i] = ord(keys[i])
+            if isinstance(keys[i], int):
+                keys[i] = curses.keyname(keys[i])
+            if hasattr(keys[i], 'encode'):
+                keys[i] = keys[i].encode()
         for key in keys:
+            logger.info('Binding %s to %s', key, callback)
             self.bound_keys[key] = callback

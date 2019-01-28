@@ -16,10 +16,10 @@ def get_defaults():
         'tempo': {
             'api_url': 'https://api.tempo.io',
             # 'url': 'https://app.tempo.io',
-            'access_token': None,
-            'refresh_token': None,
-            'client_id': None,
-            'client_secret': None,
+            # 'access_token': None,
+            # 'refresh_token': None,
+            # 'client_id': None,
+            # 'client_secret': None,
             'first_day_of_week': 0,
         },
         'jira': {

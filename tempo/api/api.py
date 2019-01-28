@@ -14,6 +14,16 @@ logger = logging.getLogger(__name__)
 
 DateType = Union[datetime.date, datetime.date]
 
+lifecycle_handlers = []
+
+
+def register_lifecycle_handler(handler):
+    if not hasattr(handler, 'on_request'):
+        raise TypeError(f'{handler}: Missing on_request handler')
+    if not hasattr(handler, 'on_request_done'):
+        raise TypeError(f'{handler}: Missing on_request_done handler')
+    lifecycle_handlers.append(handler)
+
 
 class Api:
     class ApiError(Exception):
@@ -22,25 +32,29 @@ class Api:
             self.error = error
             super().__init__(str(original))
 
+    REQUEST_COUNT = 0
+
     token_type = 'Bearer'
     token = None
 
-    def __init__(self, token):
-        self.token = token
-
-    def get_headers(self):
+    def get_headers(self, token: str = None):
         return {
-            'Authorization': f'{self.token_type} {self.token}',
+            'Authorization': (
+                f'{self.token_type} {token or config.jira.access_token}'
+            ),
         }
 
     def request(
         self,
-        method,
-        path,
-        params={},
-        json=None,
-        prefix=None
+        method: str,
+        path: str,
+        params: dict = None,
+        json: dict = None,
+        access_token: str = None
     ):
+        Api.REQUEST_COUNT += 1
+        if params is None:
+            params = {}
         formatted_params = {
             key: self.format_param(value)
             for key, value in params.items()
@@ -53,9 +67,17 @@ class Api:
         logger.info(
             f'Making {method} request to {url} with params {formatted_params}'
         )
+        for handler in lifecycle_handlers:
+            handler.on_request(
+                method=method,
+                path=path,
+                params=params,
+                json=json,
+                request_count=Api.REQUEST_COUNT,
+            )
         r = getattr(requests, method)(
             url,
-            headers=self.get_headers(),
+            headers=self.get_headers(token=access_token),
             params=formatted_params,
             json=json,
         )
@@ -64,6 +86,16 @@ class Api:
         except Exception as e:
             logger.exception('Exception calling %s', r.url)
             raise self.ApiError(e, r.text)
+        finally:
+            Api.REQUEST_COUNT -= 1
+            for handler in lifecycle_handlers:
+                handler.on_request_done(
+                    method=method,
+                    path=path,
+                    params=params,
+                    json=json,
+                    request_count=Api.REQUEST_COUNT,
+                )
         return r.json()
 
     def get(self, *args, **kwargs):
@@ -83,29 +115,12 @@ class Api:
 
 class Jira(Api):
 
-    def __init__(self, *args, **kwargs):
-        super().__init__(*args, **kwargs)
-        self.base_url = urljoin(
+    @property
+    def base_url(self):
+        return urljoin(
             config.jira.api_url,
             f'/ex/jira/{config.jira.site_id}'
         )
-
-    # def __init__(self, token, expires, tempo):
-    #     super().__init__(token)
-    #     self.tempo = tempo
-    #     self.expires = expires
-
-    # @classmethod
-    # def auth_by_tempo(cls, tempo: Tempo):
-    #     token_request = tempo.get(
-    #         '/jira/v1/get-jira-oauth-token/',
-    #         prefix=None
-    #     )
-    #     return cls(
-    #         token_request['token'],
-    #         expires=token_request['expiresAt'],
-    #         tempo=tempo
-    #     )
 
     @api_request(cache=True)
     @returns(models.JiraUser)
@@ -136,33 +151,25 @@ class JiraGlobal(Api):
 
     @api_request(cache=True)
     @returns(models.AccessibleResources)
-    def accessible_resources(self) -> models.AccessibleResources:
-        return self.get('/oauth/token/accessible-resources')
+    def accessible_resources(
+        self,
+        access_token=None
+    ) -> models.AccessibleResources:
+        return self.get(
+            '/oauth/token/accessible-resources',
+            access_token=access_token,
+        )
 
 
 class Tempo(Api):
     base_url = config.tempo.api_url
     token_type = 'Jira-Bearer'
 
-    def get_headers(self):
+    def get_headers(self, **kwargs):
         return {
             'Jira-Cloud-Id': config.jira.site_id,
-            **super().get_headers()
+            **super().get_headers(**kwargs)
         }
-
-    # @classmethod
-    # def matching_instances(cls, part: str) -> str:
-    #     r = requests.get(
-    #         urljoin(config.tempo.url, 'rest/jira/client/search/'),
-    #         params={'sitename': part}
-    #     )
-    #     if not r.ok:
-    #         logger.warning(
-    #             f'Received {r.status_code} for matching instances. '
-    #             f'Url: {r.url}'
-    #         )
-    #         return None
-    #     return r.json()['path']
 
     @api_request
     @returns(models.Worklogs)
@@ -176,7 +183,7 @@ class Tempo(Api):
         limit=200
     ) -> models.Worklogs:
         if account_id:
-            url = f'/core/3/worklogs/account/{account_id}'
+            url = f'/core/3/worklogs/user/{account_id}'
         else:
             url = '/core/3/worklogs'
         return self.get(
@@ -252,27 +259,6 @@ class Tempo(Api):
     create_worklog = update_worklog
 
 
-# class Jira(Api):
-#     base_url = config.jira.url
-
-#     def __init__(self, token, expires, tempo):
-#         super().__init__(token)
-#         self.tempo = tempo
-#         self.expires = expires
-
-#     @classmethod
-#     def auth_by_tempo(cls, tempo: Tempo):
-#         token_request = tempo.get(
-#             '/jira/v1/get-jira-oauth-token/',
-#             prefix=None
-#         )
-#         return cls(
-#             token_request['token'],
-#             expires=token_request['expiresAt'],
-#             tempo=tempo
-#         )
-
-#     @api_request(cache=True)
-#     @returns(models.JiraUser)
-#     def myself(self) -> models.JiraUser:
-#         return self.get('/rest/api/3/myself')
+tempo = Tempo()
+jira = Jira()
+jira_global = JiraGlobal()

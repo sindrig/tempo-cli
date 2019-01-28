@@ -5,6 +5,7 @@ import subprocess
 import logging
 import curses
 
+from tempo.api import tempo, jira
 from tempo_cli.ui.base import Component
 from tempo_cli.ui.utils import (
     sec_to_human, datetime_to_human, human_to_seconds, human_to_datetime,
@@ -39,7 +40,7 @@ class WorklogForm(Component):
                 'author_account_id': self.worklog.author.account_id,
                 'worklog_id': self.worklog.id,
             }
-            self.bind_key('c', self.update_worklog, 'Update worklog')
+            self.bind_key('^X', self.update_worklog, 'Update worklog')
         else:
             self.data = {
                 'description': '',
@@ -51,9 +52,9 @@ class WorklogForm(Component):
                     date,
                     datetime.time.min,
                 ),
-                'author_account_id': self.jira.myself(cache=True).account_id,
+                'author_account_id': jira.myself(cache=True).account_id,
             }
-            self.bind_key('c', self.update_worklog, 'Create worklog')
+            self.bind_key('^X', self.update_worklog, 'Create worklog')
         self.form = [
             ('Issue', (lambda x: x, 'issue_key'), IssueEditor(),),
             ('Description', (str, 'description'), Editor(),),
@@ -124,8 +125,8 @@ class WorklogForm(Component):
         # Update without id creates worklog
         self.error = ''
         try:
-            created = self.tempo.update_worklog(**self.data)
-        except self.tempo.ApiError as e:
+            created = tempo.update_worklog(**self.data)
+        except tempo.ApiError as e:
             self.error = e.error
         else:
             self.create_callback(created)
@@ -204,7 +205,7 @@ class IssueEditor(Editor):
 class IssuePicker(Component):
     def __init__(self, search, callback, *args, **kwargs):
         super().__init__(*args, **kwargs)
-        self.sections = self.jira.issue_picker(search)
+        self.sections = jira.issue_picker(search)
         self.selected_issue = None
         self.callback = callback
 

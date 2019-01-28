@@ -3,6 +3,7 @@ import locale
 import inspect
 import curses
 
+from tempo.api import register_lifecycle_handler
 from tempo_cli.ui.components.my_work import MyWork
 from tempo_cli.ui.base import Component
 
@@ -11,10 +12,9 @@ logger = logging.getLogger(__name__)
 
 class TempoUI:
     stdscr = None
+    _http_request_count = 0
 
-    def __init__(self, tempo, jira):
-        self.tempo = tempo
-        self.jira = jira
+    def __init__(self):
         self.running = True
         self.page_stack = []
 
@@ -22,15 +22,15 @@ class TempoUI:
         self.stdscr = stdscr
         self.container_kwargs = {
             'stdscr': self.stdscr,
-            'tempo': self.tempo,
-            'jira': self.jira,
             'close': self.go_back,
             'on_top': self.on_top,
+            'get_http_request_count': self.get_http_request_count,
         }
         curses.use_default_colors()
         curses.init_pair(curses.COLOR_RED, curses.COLOR_RED, -1)
         curses.init_pair(curses.COLOR_GREEN, curses.COLOR_GREEN, -1)
         locale.setlocale(locale.LC_ALL, "")
+        register_lifecycle_handler(self)
         self.start()
 
     def exit(self):
@@ -38,7 +38,8 @@ class TempoUI:
 
     @property
     def page(self):
-        return self.page_stack[-1]
+        if self.page_stack:
+            return self.page_stack[-1]
 
     def go_back(self, key=None):
         self.page_stack.pop()
@@ -51,12 +52,18 @@ class TempoUI:
     def on_top(self, page):
         return page == self.page_stack[-1]
 
+    def get_http_request_count(self):
+        return self._http_request_count
+
     def start(self):
         self.set_page(MyWork(**self.container_kwargs))
         self.display()
 
     def navigate(self):
         key = self.stdscr.getch()
+        keyname = curses.keyname(key)
+        logger.info('key %s', key)
+        logger.info('keyname %s', curses.keyname(key))
         target = None
         if key in (curses.KEY_ENTER, ord('\n')):
             target = self.page.key_select
@@ -70,8 +77,8 @@ class TempoUI:
             target = self.page.key_right
         elif key == curses.KEY_RESIZE:
             target = self.page.refresh
-        elif key in self.page.bound_keys:
-            target = self.page.bound_keys[key]
+        elif keyname in self.page.bound_keys:
+            target = self.page.bound_keys[keyname]
         if target:
             result = target(key)
             while result is not None:
@@ -89,3 +96,13 @@ class TempoUI:
         while self.running:
             self.page.refresh()
             self.navigate()
+
+    def on_request(self, request_count, **kwargs):
+        self._http_request_count = request_count
+        if self.page:
+            self.page.refresh()
+
+    def on_request_done(self, request_count, **kwargs):
+        self._http_request_count = request_count
+        if self.page:
+            self.page.refresh()

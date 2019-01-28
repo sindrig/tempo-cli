@@ -1,8 +1,10 @@
 import datetime
+import time
 import logging
 import curses
 
 from tempo.config import config
+from tempo.api import tempo, jira
 from tempo_cli.ui.base import Component
 from tempo_cli.ui.utils import delta_to_human, sec_to_human, date_to_human
 from tempo_cli.ui.components.worklog_form import WorklogForm
@@ -20,9 +22,12 @@ class MyWork(Component):
         self.date = date
         self.get_data()
         self.bind_key('c', self.create_worklog, 'Log work')
+        self.bind_key('u', self.key_select, 'Update worklog')
 
     def get_data(self):
-        self.user = self.jira.myself(cache=True)
+        while self.get_http_request_count():
+            time.sleep(.1)
+        self.user = jira.myself(cache=True)
         self.get_worklogs()
         self.get_schedules()
 
@@ -62,8 +67,8 @@ class MyWork(Component):
             self.worklogs[walker] = []
             walker += datetime.timedelta(1)
 
-        self.tempo.worklogs(
-            # TODO: Account id
+        tempo.worklogs(
+            account_id=self.user.account_id,
             from_date=from_date,
             to_date=to_date,
             callback=self.receive_worklogs
@@ -79,8 +84,8 @@ class MyWork(Component):
     def get_schedules(self):
         self.schedules = {}
         from_date, to_date = self.daterange()
-        self.tempo.user_schedules(
-            # TODO: Account id
+        tempo.user_schedules(
+            account_id=self.user.account_id,
             from_date=from_date,
             to_date=to_date,
             callback=self.receive_schedules
