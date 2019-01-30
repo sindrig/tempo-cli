@@ -9,7 +9,7 @@ from oauth2_client.credentials_manager import (
     CredentialManager, ServiceInformation, OAuthError
 )
 
-from tempo.api import jira_global
+from tempo.api import jira_global, tempo
 from tempo.config import config
 
 
@@ -36,6 +36,42 @@ def ensure_auth(f):
     return wrapper
 
 
+service_information = ServiceInformation(
+    urljoin(
+        config.jira.auth_url,
+        'authorize'
+    ),
+    urljoin(
+        config.jira.auth_url,
+        '/oauth/token',
+    ),
+    config.jira.client_id,
+    config.jira.client_secret,
+    [
+        'read:jira-user',
+        'read:jira-work',
+        'write:jira-work',
+        # Need this for refresh token
+        'offline_access'
+    ],
+)
+manager = CredentialManager(
+    service_information,
+)
+
+
+def refresh_tokens():
+    if config.jira.refresh_token:
+        try:
+            manager.init_with_token(config.jira.refresh_token)
+            validate_access_token(manager._access_token)
+            config.jira.access_token = manager._access_token
+            return True
+        except (OAuthError, TokenNotValid):
+            pass
+    return False
+
+
 class TokenNotValid(Exception):
     pass
 
@@ -48,7 +84,13 @@ def validate_access_token(access_token):
         logger.info('Success. Jira name: %s', resource.name)
         config.jira.site_id = resource.id
     except jira_global.ApiError:
-        raise TokenNotValid()
+        raise TokenNotValid('Could not validate token with JIRA')
+    try:
+        # We want to get 404, everything else should fail
+        tempo.account('PROBABLY_NOT_VALID_KEY')
+    except tempo.ApiError as e:
+        if e.original.response.status_code != 404:
+            raise TokenNotValid('Could not validate token with Tempo')
 
 
 def authenticate():
@@ -60,37 +102,11 @@ def authenticate():
             logger.info(
                 f'Could not validate access using {config.jira.access_token}'
             )
-
-    service_information = ServiceInformation(
-        urljoin(
-            config.jira.auth_url,
-            'authorize'
-        ),
-        urljoin(
-            config.jira.auth_url,
-            '/oauth/token',
-        ),
-        config.jira.client_id,
-        config.jira.client_secret,
-        [
-            'read:jira-user',
-            'read:jira-work',
-            # Need this for refresh token
-            'offline_access'
-        ],
-    )
-    manager = CredentialManager(
-        service_information,
-    )
     if config.jira.refresh_token:
-        try:
-            manager.init_with_token(config.jira.refresh_token)
-            validate_access_token(manager._access_token)
-            config.jira.access_token = manager._access_token
+        if refresh_tokens():
             return
-        except (OAuthError, TokenNotValid):
-            if input(BAD_ACCESS_TOKEN).lower()[0] != 'y':
-                sys.exit(1)
+        elif input(BAD_ACCESS_TOKEN).lower()[0] != 'y':
+            sys.exit(1)
 
     redirect_uri = 'http://localhost:8158/oauth/code'
 
@@ -109,3 +125,4 @@ def authenticate():
     logger.debug('Access got = %s', manager._access_token)
     config.jira.access_token = manager._access_token
     config.jira.refresh_token = manager.refresh_token
+    validate_access_token(config.jira.access_token)

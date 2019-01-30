@@ -25,6 +25,11 @@ def register_lifecycle_handler(handler):
     lifecycle_handlers.append(handler)
 
 
+def refresh_tokens():
+    # TODO: Think about moving auth
+    return False
+
+
 class Api:
     class ApiError(Exception):
         def __init__(self, original, error):
@@ -35,7 +40,6 @@ class Api:
     REQUEST_COUNT = 0
 
     token_type = 'Bearer'
-    token = None
 
     def get_headers(self, token: str = None):
         return {
@@ -50,7 +54,8 @@ class Api:
         path: str,
         params: dict = None,
         json: dict = None,
-        access_token: str = None
+        access_token: str = None,
+        tried_refresh: bool = False,
     ):
         Api.REQUEST_COUNT += 1
         if params is None:
@@ -75,17 +80,25 @@ class Api:
                 json=json,
                 request_count=Api.REQUEST_COUNT,
             )
-        r = getattr(requests, method)(
-            url,
+        request_kwargs = dict(
+            url=url,
             headers=self.get_headers(token=access_token),
             params=formatted_params,
             json=json,
         )
+        action = getattr(requests, method)
+        r = action(**request_kwargs)
         try:
             r.raise_for_status()
         except Exception as e:
-            logger.exception('Exception calling %s', r.url)
-            raise self.ApiError(e, r.text)
+            if not tried_refresh and refresh_tokens():
+                try:
+                    r = action(**request_kwargs)
+                except self.ApiError as e:
+                    raise e
+            else:
+                logger.exception('Exception calling %s', r.url)
+                raise self.ApiError(e, r.text)
         finally:
             Api.REQUEST_COUNT -= 1
             for handler in lifecycle_handlers:
@@ -255,6 +268,25 @@ class Tempo(Api):
                 json=data,
             )
         return self.post(f'/core/3/worklogs', json=data)
+
+    @api_request
+    @returns(models.Accounts)
+    def accounts(
+        self,
+        status: str = None,
+    ):
+        params = {}
+        if status is not None:
+            params['status'] = status
+        return self.get('/core/3/accounts', params=params)
+
+    @api_request
+    @returns(models.Account)
+    def account(
+        self,
+        key: str
+    ):
+        return self.get(f'/core/3/accounts/{key}')
 
     create_worklog = update_worklog
 

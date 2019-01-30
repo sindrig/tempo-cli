@@ -1,5 +1,8 @@
+import logging
 from typing import Union
 import datetime
+
+logger = logging.getLogger(__name__)
 
 DATE_FORMAT = '%Y-%m-%d'
 TIME_FORMAT = '%H:%M:%S'
@@ -49,9 +52,6 @@ class List(Item):
             web_item_type(item_data)
             for item_data in data[self.result_key]
         ]
-        # if isinstance(data, dict):
-        # else:
-        #     self._items = [web_item_type(item_data) for item_data in data]
 
 
 class Metadata:
@@ -82,6 +82,7 @@ class Field:
             return data.get(self.data_key)
 
     def value(self, data):
+        logger.info(data)
         value = self.value_getter(data)
         if value or self.required:
             return self.convert(value)
@@ -237,3 +238,49 @@ class UserSchedule(Item):
 
 class UserSchedules(List):
     of = UserSchedule
+
+
+class AccountCustomer(Item):
+    fields = [
+        Field('key'),
+        Field('name'),
+    ]
+
+
+class AccountCategoryType(Item):
+    fields = [
+        Field('name')
+    ]
+
+
+class AccountCategory(Item):
+    fields = [
+        Field('key'),
+        Field('name'),
+        ItemField('type').using(AccountCategoryType)
+    ]
+
+
+class AccountContact(Item):
+    fields = [
+        Field('account_id').optional(),
+        Field('display_name'),
+    ]
+
+
+class Account(Item):
+    fields = [
+        Field('key'),
+        Field('name'),
+        Field('status'),
+        Field('global'),
+        Field('monthly_budget').optional(),
+        ItemField('lead').using(JiraUser),
+        ItemField('contact').using(AccountContact).optional(),
+        ItemField('category').using(AccountCategory).optional(),
+        ItemField('customer').using(AccountCustomer).optional(),
+    ]
+
+
+class Accounts(List):
+    of = Account
