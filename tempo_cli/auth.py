@@ -64,9 +64,10 @@ def refresh_tokens():
     if config.jira.refresh_token:
         try:
             manager.init_with_token(config.jira.refresh_token)
-            validate_access_token(manager._access_token)
-            config.jira.access_token = manager._access_token
-            return True
+            if manager._access_token:
+                config.jira.access_token = manager._access_token
+                validate_access_token(manager._access_token)
+                return True
         except (OAuthError, TokenNotValid):
             pass
     return False

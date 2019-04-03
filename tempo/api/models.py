@@ -144,7 +144,8 @@ class ArrayField(Field):
 # JIRA
 class Issue(Item):
     fields = [
-        Field('key')
+        Field('key'),
+        Field('id'),
     ]
 
 
