@@ -37,6 +37,9 @@ class List(Item):
     def __getitem__(self, idx):
         return self._items[idx]
 
+    def __len__(self):
+        return len(self._items)
+
     def get_type(self):
         if not hasattr(self, 'of'):
             raise NotImplementedError()
